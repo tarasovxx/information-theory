@@ -26,17 +26,18 @@ def new_image(images):
         
 # функция генерации синусоидального сигнала
 def generate_harmonic(frequency, duration, step, shift):
-    t = np.arange(0.0, duration, step)
+    t = np.arange(0.0, duration + 0.001, step)
     if shift != 0: signal = np.sin(2 * np.pi * frequency * t + shift)
     else: signal = np.sin(2 * np.pi * frequency * t)
     return t, signal
 
 # функция генерации полигармонического сигнала
-def generate_poliharmonic(frequencies, duration, points):
-    t = np.arange(0.0, duration, step)
+def generate_poliharmonic(frequencies, duration, step):
+    t = np.arange(0.0, duration + 0.001, step)
     signal = sum(np.sin(2 * np.pi * f * t) for f in frequencies)
     return t, signal
 
+#def real_spectrum():
 # основная часть 
 if 'button_1' not in st.session_state:
     st.session_state.button_1 = False
@@ -66,18 +67,18 @@ if signal_type == 'Периодический':
         else: duration = 10 * period
         y_tick = 0.2; x_tick = round(duration / 12, 1)
         points = math.floor(duration / step) + 1
-        t, signal = generate_harmonic(frequency, duration + step, step, shift)
+        t, signal = generate_harmonic(frequency, duration, step, shift)
         
     elif signal_kind == 'Полигармонический':
         frequencies = st.text_input('Частоты гармоник через ";"', '1; 2; 3')
         frequencies = frequencies.replace(',', '.')
         try: 
             frequencies = list(map(float, frequencies.split('; ')))            
-            duration = st.number_input('Интервал задания сигнала 0,001 ≤ TN ≤ 10 (с)', min_value = 0.001, max_value = 10.0, value = 2.0, step = 0.001, format = "%0.3f")
+            duration = st.number_input('Интервал задания сигнала 0,001 ≤ TN ≤ 10 (с)', min_value = 0.001, max_value = 10.0, value = 1.2, step = 0.001, format = "%0.3f")
             step = st.number_input('Шаг дискретизации 0,001 ≤ Δt ≤ 2,0 (c)', min_value = 0.001, max_value = 2.0, value = 0.030, step = 0.001, format = "%0.3f")
             points = math.floor(duration / step) + 1
             y_tick = 0.5; x_tick = round(duration / 12, 1)
-            t, signal = generate_poliharmonic(frequencies, duration + step, points)  
+            t, signal = generate_poliharmonic(frequencies, duration, step)  
         except Exception as e: 
             st.warning("Ошибка ввода параметров")
             frequencies = [0]  
@@ -93,17 +94,17 @@ st.button('Выполнить формирование сигнала', on_click
 if st.session_state.button_1: # кнопка нажата
     fig = go.Figure()  
     fig.add_trace(go.Scatter(x = t, y = signal, mode = 'lines'))
-    fig.update_layout(title = 'Вид сигнала\n', title_x = 0.5, margin = dict(l=15, r=30, t=60, b=20), template = 'plotly', width = 1200, height = 500)
+    fig.update_layout(title = 'Вид сигнала\n', title_x = 0.49, margin = dict(l=15, r=30, t=60, b=20), template = 'plotly_white', width = 1200, height = 500)
     fig.update_xaxes(title_text = 'Время (c)', showgrid = True, title_font_color = 'black', linecolor = 'black', dtick = x_tick, mirror = True)
     fig.update_yaxes(title_text = 'Амплитуда', showgrid = True, title_font = dict(color = 'black'), linecolor = 'black', dtick = y_tick, mirror = True)                           
     # сохранение и копирование
     write_p, save, copy = st.columns([8, 1, 1])  
     write_p.write(f'Количество точек = {points}')
     with save:
-        if st.button(label = '', icon = ":material/download:", on_click = button_1_on):
-            pio.write_image(fig, f"График_сигнала_{st.session_state.image_count}.jpg", format = 'jpg', width = 1050, height = 675)
+        if st.button(label = '', icon = ':material/download:', on_click = button_1_on):
+            pio.write_image(fig, f'График_сигнала_{st.session_state.image_count}.jpg', format = 'jpg', width = 1050, height = 675)
             st.session_state.image_count += 1            
-    with copy:
+    with copy: # надо сделать
         st.button(label = '', icon = ":material/file_copy:", on_click = button_1_on)
             #write_p.success('График скопирован')
     # график сигнала     
@@ -112,5 +113,27 @@ if st.session_state.button_1: # кнопка нажата
     # спектры
     st.button('Спектр сигнала', on_click = button_2_on)
     if st.session_state.button_2:
-        signal_type = st.selectbox('Число БПФ', ('128', '256', '256', '512', '1024', '2048', '4096'), index = 4, on_change = button_2_on)    
-        spectrum = st.radio("**Спектры:**", ["Вещественный", "Мнимый", "Комплексный", "Амплитудный", "Фазовый"])
+        bpf_select = st.selectbox('Число БПФ', ('128', '256', '256', '512', '1024', '2048', '4096'), index = 4, on_change = button_2_on) 
+        bpf = int(bpf_select) 
+        # FFT сигнала
+        fft_signal = np.pad(signal, (0, bpf - points), mode = 'constant') # дозаполнение отчетов '0'       
+        fft_val = np.fft.fft(fft_signal)          
+        fft_freq = np.fft.fftfreq(bpf, step)         
+        indexes = (fft_freq >= 0) # только неотрицательные частоты
+        fft_val = fft_val[indexes]
+        fft_freq = fft_freq[indexes] 
+        spectrum = st.radio('**Спектры:**', ['Вещественный', 'Мнимый', 'Комплексный', 'Амплитудный', 'Фазовый'], index = None)
+        if spectrum == 'Вещественный': 
+            y_val = np.real(fft_val)
+        else: # spectrum == 'Мнимый':
+            y_val = np.imag(fft_val)
+        # график спектра
+        if spectrum != None:
+            fig_1 = go.Figure()  
+            fig_1.add_trace(go.Scatter(x = fft_freq, y = y_val, mode = 'lines'))
+            fig_1.update_layout(title = f'{spectrum} спектр\n', title_x = 0.49, margin = dict(l=15, r=30, t=60, b=20), template = 'ggplot2')
+            fig_1.update_xaxes(title_text = 'Частота (рад/c)', showgrid = True, mirror = True)
+            fig_1.update_yaxes(showgrid = True, mirror = True)
+            fig_1.show()
+            st.plotly_chart(fig_1) 
+
