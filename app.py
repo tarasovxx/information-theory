@@ -1,10 +1,8 @@
 import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt
 import math
 import plotly.graph_objects as go
 import plotly.io as pio
-from streamlit_option_menu import option_menu
 
 # функции включения и отключения нажатия кнопок
 def buttons_off():
