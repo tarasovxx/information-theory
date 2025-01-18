@@ -1,0 +1,4 @@
+.devcontainer
+.idea
+__pycache__/
+.venv
