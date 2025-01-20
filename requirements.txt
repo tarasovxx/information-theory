@@ -1,3 +1,6 @@
 streamlit
 numpy
 plotly
+matplotlib
+kaleido
+scipy
